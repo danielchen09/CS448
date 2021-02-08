@@ -18,7 +18,11 @@ public class Attribute {
     }
 
     public Set<Attribute> closureUnder(FunctionalDependencySet f) {
-        Set<Attribute> result = new Set<>(this);
+        return Attribute.closureUnder(new Set<>(this), f);
+    }
+
+    public static Set<Attribute> closureUnder(Set<Attribute> attrs, FunctionalDependencySet f) {
+        Set<Attribute> result = new Set<>(attrs);
         List<FunctionalDependency> fds = f.toList();
         int change = 0;
         do {
@@ -34,6 +38,10 @@ public class Attribute {
 
     public static Attribute get(String name) {
         return attributes.get(name);
+    }
+
+    public Set<Attribute> toSet() {
+        return new Set<>(this);
     }
 
     @Override

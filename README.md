@@ -1,1 +1,1 @@
-# CS448
+# CS448 - Relational DBMS

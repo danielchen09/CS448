@@ -59,6 +59,12 @@ public class FunctionalDependency {
         return null;
     }
 
+    public FunctionalDependencySet toSet() {
+        FunctionalDependencySet fds = new FunctionalDependencySet();
+        fds.union(this);
+        return fds;
+    }
+
     @Override
     public String toString() {
         return lhs.toString() + "->" + rhs.toString();

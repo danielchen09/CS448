@@ -10,6 +10,14 @@ public class Set<T> {
         this.set.add(item);
     }
 
+    public Set(Set set) {
+        this.union(set);
+    }
+
+    public Set(java.util.Set set) {
+        this.set = new HashSet<>(set);
+    }
+
     public int union(Set set) {
         int added = 0;
         for (Object item : set.toList()) {
@@ -25,10 +33,29 @@ public class Set<T> {
         return set.add(item) ? 1 : 0;
     }
 
-    public static Set union(Set s1, Set s2) {
-        Set s = new Set<>();
-        s.union(s1);
-        s.union(s2);
+    public static Set union(Set...sets) {
+        Set s = new Set();
+        for (Set set : sets) {
+            s.union(set);
+        }
+        return s;
+    }
+
+    public void subtract(T item) {
+        this.set.remove(item);
+    }
+
+    public static Set subtract(Set s1, Set s2) {
+        Set s = new Set(s1);
+        for (Object item : s2.toList()) {
+            s.subtract(item);
+        }
+        return s;
+    }
+
+    public static Set remove(Set s1, Object item) {
+        Set s = new Set(s1);
+        s.set.remove(item);
         return s;
     }
 
@@ -42,6 +69,10 @@ public class Set<T> {
 
     public List<T> toList() {
         return new ArrayList<T>(Arrays.asList((T[]) set.toArray()));
+    }
+
+    public Set<T> clone(){
+        return new Set<>(this.set);
     }
 
     @Override

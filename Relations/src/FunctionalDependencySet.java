@@ -1,7 +1,9 @@
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Function;
 
 public class FunctionalDependencySet extends Set<FunctionalDependency> {
+    public FunctionalDependencySet() {}
     public FunctionalDependencySet(String fdsString) {
         //AB->C,A->BC...
         String[] fds = fdsString.split(",");
@@ -20,6 +22,12 @@ public class FunctionalDependencySet extends Set<FunctionalDependency> {
     public FunctionalDependencySet(FunctionalDependencySet fds) {
         for (FunctionalDependency fd : fds.toList()) {
             this.union(fd);
+        }
+    }
+
+    public FunctionalDependencySet(Set set) {
+        for (Object item : set.toList()) {
+            this.union((FunctionalDependency) item);
         }
     }
 
@@ -43,6 +51,38 @@ public class FunctionalDependencySet extends Set<FunctionalDependency> {
         return pairs;
     }
 
+    public Set<Attribute> extraneousLHS(FunctionalDependency fd) {
+        // gamma = a - {A}, check if gamma -> B can be inferred from F
+        Set<Attribute> attrs = fd.lhs;
+        Set<Attribute> extraneous = new Set<>();
+        for (Attribute A : attrs.toList()) {
+            Set<Attribute> gamma = Set.remove(fd.lhs, A);
+            Set<Attribute> gammaClosure = Attribute.closureUnder(gamma, this);
+
+            if (fd.rhs.subsetOf(gammaClosure)) {
+                extraneous.union(A);
+            }
+        }
+        return extraneous;
+    }
+
+    public Set<Attribute> extraneousRHS(FunctionalDependency fd) {
+        // F' = (F - {a -> b}) u (a -> {b - A})
+        Set<Attribute> attrs = fd.rhs;
+        Set<Attribute> extraneous = new Set<>();
+        for (Attribute A : attrs.toList()) {
+            FunctionalDependencySet left = FunctionalDependencySet.subtract(this, fd.toSet());
+            FunctionalDependencySet right = new FunctionalDependency(fd.lhs, (Set<Attribute>) Set.remove(fd.rhs, A)).toSet();
+            FunctionalDependencySet fPrime = FunctionalDependencySet.union(left, right);
+
+            Set<Attribute> lhsClosure = Attribute.closureUnder(fd.lhs, fPrime);
+            if (A.toSet().subsetOf(lhsClosure)) {
+                extraneous.union(A);
+            }
+        }
+        return extraneous;
+    }
+
     public FunctionalDependencySet closure() {
         FunctionalDependencySet closure = new FunctionalDependencySet(this);
         int change = 0;
@@ -61,6 +101,38 @@ public class FunctionalDependencySet extends Set<FunctionalDependency> {
             }
         } while (change != 0);
         return closure;
+    }
+
+    public FunctionalDependencySet canonicalCover() {
+        FunctionalDependencySet fc = new FunctionalDependencySet(this);
+        int change = 0;
+        do {
+            FunctionalDependencySet fc_new = new FunctionalDependencySet(fc);
+            Set<Attribute> lhs = new Set<>();
+            for (FunctionalDependency fd : fc.toList()) {
+                lhs.union(fd.lhs);
+            }
+        } while (change != 0);
+        return fc;
+    }
+
+    public static FunctionalDependencySet subtract(FunctionalDependencySet fds1, FunctionalDependencySet fds2) {
+        return new FunctionalDependencySet(Set.subtract(fds1, fds2));
+    }
+
+    public static FunctionalDependencySet union(FunctionalDependencySet...fds) {
+        return new FunctionalDependencySet(Set.union(fds));
+    }
+
+    public FunctionalDependency find(String fdString) {
+        String[] fdSplit = fdString.split("->");
+        FunctionalDependency fd = new FunctionalDependency(fdSplit[0], fdSplit[1], "");
+        for (FunctionalDependency f : this.toList()) {
+            if (fd.equals(f)) {
+                return f;
+            }
+        }
+        return null;
     }
 
     @Override
