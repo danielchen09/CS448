@@ -1,5 +1,7 @@
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 
 public class FunctionalDependencySet extends Set<FunctionalDependency> {
@@ -107,10 +109,21 @@ public class FunctionalDependencySet extends Set<FunctionalDependency> {
         FunctionalDependencySet fc = new FunctionalDependencySet(this);
         int change = 0;
         do {
-            FunctionalDependencySet fc_new = new FunctionalDependencySet(fc);
-            Set<Attribute> lhs = new Set<>();
+            FunctionalDependencySet fc_new = new FunctionalDependencySet();
+            HashMap<Set<Attribute>, Set<Attribute>> lrhs = new HashMap<>();
             for (FunctionalDependency fd : fc.toList()) {
-                lhs.union(fd.lhs);
+                if (!lrhs.containsKey(fd.lhs)) {
+                    lrhs.put(fd.lhs, new Set<>());
+                }
+                lrhs.get(fd.lhs).union(fd.rhs);
+            }
+            for (Map.Entry<Set<Attribute>, Set<Attribute>> entry : lrhs.entrySet()) {
+                fc_new.union(new FunctionalDependency(entry.getKey(), entry.getValue()));
+            }
+            fc = fc_new;
+            for (FunctionalDependency fd : fc.toList()) {
+                Set<Attribute> extraneousLHS = fc.extraneousLHS(fd);
+                Set<Attribute> extraneousRHS = fc.extraneousRHS(fd);
             }
         } while (change != 0);
         return fc;
