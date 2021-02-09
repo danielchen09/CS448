@@ -17,12 +17,12 @@ public class Attribute {
         return attributes.get(name);
     }
 
-    public Set<Attribute> closureUnder(FunctionalDependencySet f) {
-        return Attribute.closureUnder(new Set<>(this), f);
+    public AttributeSet closureUnder(FunctionalDependencySet f) {
+        return this.toSet().closureUnder(f);
     }
 
-    public static Set<Attribute> closureUnder(Set<Attribute> attrs, FunctionalDependencySet f) {
-        Set<Attribute> result = new Set<>(attrs);
+    public static AttributeSet closureUnder(AttributeSet attrs, FunctionalDependencySet f) {
+        AttributeSet result = new AttributeSet(attrs);
         List<FunctionalDependency> fds = f.toList();
         int change = 0;
         do {
@@ -36,12 +36,21 @@ public class Attribute {
         return result;
     }
 
+    public boolean elementOf(AttributeSet set) {
+        for (Attribute attr : set.toList()) {
+            if (attr.equals(this)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static Attribute get(String name) {
         return attributes.get(name);
     }
 
-    public Set<Attribute> toSet() {
-        return new Set<>(this);
+    public AttributeSet toSet() {
+        return new AttributeSet(this);
     }
 
     @Override

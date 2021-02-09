@@ -1,10 +1,11 @@
 import java.util.Objects;
 
 public class FunctionalDependency {
-    public Set<Attribute> lhs = new Set<>();
-    public Set<Attribute> rhs = new Set<>();
+    public AttributeSet lhs = new AttributeSet();
+    public AttributeSet rhs = new AttributeSet();
+    public boolean multivalued = false;
 
-    public FunctionalDependency(Set<Attribute> lhs, Set<Attribute> rhs) {
+    public FunctionalDependency(AttributeSet lhs, AttributeSet rhs) {
         for (Attribute attr : lhs.toList()) {
             this.lhs.union(attr);
         }
@@ -13,16 +14,39 @@ public class FunctionalDependency {
         }
     }
 
-    public FunctionalDependency(String lhs, String rhs, String delimiter) {
+    public FunctionalDependency(String fdString, String delimiter, String arrow, boolean byLine) {
+        this.initByLine(fdString, delimiter, arrow);
+    }
+
+    public FunctionalDependency(String[] lhs, String[] rhs, String delimiter) {
+        for (String attr : lhs) {
+            this.lhs.union(Attribute.addAttribute(attr.replace(" ", "_")));
+        }
+        for (String attr : rhs) {
+            this.rhs.union(Attribute.addAttribute(attr.replace(" ", "_")));
+        }
+    }
+
+    public FunctionalDependency multivalued(boolean multivalued) {
+        this.multivalued = multivalued;
+        return this;
+    }
+
+    public static FunctionalDependency initByString(String lhs, String rhs, String delimiter) {
         String[] attributes_lhs = lhs.split(delimiter);
         String[] attributes_rhs = rhs.split(delimiter);
+        FunctionalDependency fd = new FunctionalDependency(attributes_lhs, attributes_rhs, delimiter);
+        return fd;
+    }
 
-        for (String attr : attributes_lhs) {
-            this.lhs.union(Attribute.addAttribute(attr));
+    public static FunctionalDependency initByLine(String fdString, String delimiter, String arrow) {
+        boolean multivalued = false;
+        if (fdString.contains(arrow + arrow)) {
+            arrow = arrow + arrow;
+            multivalued = true;
         }
-        for (String attr : attributes_rhs) {
-            this.rhs.union(Attribute.addAttribute(attr));
-        }
+        String[] fdSplit = fdString.split(arrow);
+        return FunctionalDependency.initByString(fdSplit[0].trim(), fdSplit[1].trim(), delimiter).multivalued(multivalued);
     }
 
     public FunctionalDependency(FunctionalDependency fd) {
@@ -34,8 +58,8 @@ public class FunctionalDependency {
         }
     }
 
-    public Set<Attribute> attributes() {
-        Set<Attribute> attrs = new Set<>();
+    public AttributeSet attributes() {
+        AttributeSet attrs = new AttributeSet();
         for (Attribute attr : this.lhs.toList()) {
             attrs.union(attr);
         }
@@ -54,7 +78,7 @@ public class FunctionalDependency {
 
     public static FunctionalDependency transitivityRule(FunctionalDependency fd1, FunctionalDependency fd2) {
         if (fd2.lhs.subsetOf(fd1.rhs)) {
-            return new FunctionalDependency(fd1.lhs, (Set<Attribute>) Set.union(fd1.rhs, fd2.rhs));
+            return new FunctionalDependency(fd1.lhs, AttributeSet.union(fd1.rhs, fd2.rhs));
         }
         return null;
     }
@@ -67,7 +91,7 @@ public class FunctionalDependency {
 
     @Override
     public String toString() {
-        return lhs.toString() + "->" + rhs.toString();
+        return lhs.toString() + "->" + (multivalued ? ">" : "") + rhs.toString();
     }
 
     @Override

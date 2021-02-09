@@ -1,19 +1,10 @@
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.util.*;
 import java.util.function.Function;
 
 public class FunctionalDependencySet extends Set<FunctionalDependency> {
     public FunctionalDependencySet() {}
-    public FunctionalDependencySet(String fdsString) {
-        //AB->C,A->BC...
-        String[] fds = fdsString.split(",");
-        for (String fd : fds) {
-            String[] fdSplit = fd.split("->");
-            this.union(new FunctionalDependency(fdSplit[0], fdSplit[1], ""));
-        }
-    }
 
     public FunctionalDependencySet(List<FunctionalDependency> fds) {
         for (FunctionalDependency fd : fds) {
@@ -33,8 +24,39 @@ public class FunctionalDependencySet extends Set<FunctionalDependency> {
         }
     }
 
-    public Set<Attribute> attributes() {
-        Set<Attribute> attributes = new Set<>();
+    public static FunctionalDependencySet initByFile(String filename, String delimiter, String arrow) {
+        FunctionalDependencySet fds = new FunctionalDependencySet();
+        try {
+            Scanner scanner = new Scanner(new File(filename));
+            while (scanner.hasNext()) {
+                String[] fdSplit = scanner.nextLine().split(arrow);
+                fds.union(FunctionalDependency.initByLine(scanner.nextLine(), delimiter, arrow));
+            }
+            scanner.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+        return fds;
+    }
+
+    public static FunctionalDependencySet initByString(String fdsString, String delimiter1, String delimiter2, String arrow) {
+        FunctionalDependencySet result = new FunctionalDependencySet();
+        //A[d2]B->C[d1]A->B[d2]C...
+        String[] fds = fdsString.split(delimiter1);
+        for (String fd : fds) {
+            boolean multivalued = false;
+            if (fd.indexOf(arrow + arrow) != -1) {
+                arrow = arrow + arrow;
+                multivalued = true;
+            }
+            String[] fdSplit = fd.split(arrow);
+            result.union(FunctionalDependency.initByString(fdSplit[0].trim(), fdSplit[1].trim(), delimiter2).multivalued(multivalued));
+        }
+        return result;
+    }
+
+    public AttributeSet attributes() {
+        AttributeSet attributes = new AttributeSet();
         for (FunctionalDependency fd : this.toList()) {
             attributes.union(fd.attributes());
         }
@@ -53,13 +75,13 @@ public class FunctionalDependencySet extends Set<FunctionalDependency> {
         return pairs;
     }
 
-    public Set<Attribute> extraneousLHS(FunctionalDependency fd) {
+    public AttributeSet extraneousLHS(FunctionalDependency fd) {
         // gamma = a - {A}, check if gamma -> B can be inferred from F
-        Set<Attribute> attrs = fd.lhs;
-        Set<Attribute> extraneous = new Set<>();
+        AttributeSet attrs = fd.lhs;
+        AttributeSet extraneous = new AttributeSet();
         for (Attribute A : attrs.toList()) {
-            Set<Attribute> gamma = Set.remove(fd.lhs, A);
-            Set<Attribute> gammaClosure = Attribute.closureUnder(gamma, this);
+            AttributeSet gamma = AttributeSet.subtract(fd.lhs, A.toSet());
+            AttributeSet gammaClosure = gamma.closureUnder(this);
 
             if (fd.rhs.subsetOf(gammaClosure)) {
                 extraneous.union(A);
@@ -68,16 +90,16 @@ public class FunctionalDependencySet extends Set<FunctionalDependency> {
         return extraneous;
     }
 
-    public Set<Attribute> extraneousRHS(FunctionalDependency fd) {
+    public AttributeSet extraneousRHS(FunctionalDependency fd) {
         // F' = (F - {a -> b}) u (a -> {b - A})
-        Set<Attribute> attrs = fd.rhs;
-        Set<Attribute> extraneous = new Set<>();
+        AttributeSet attrs = fd.rhs;
+        AttributeSet extraneous = new AttributeSet();
         for (Attribute A : attrs.toList()) {
             FunctionalDependencySet left = FunctionalDependencySet.subtract(this, fd.toSet());
-            FunctionalDependencySet right = new FunctionalDependency(fd.lhs, (Set<Attribute>) Set.remove(fd.rhs, A)).toSet();
+            FunctionalDependencySet right = new FunctionalDependency(fd.lhs, AttributeSet.subtract(fd.rhs, A.toSet())).toSet();
             FunctionalDependencySet fPrime = FunctionalDependencySet.union(left, right);
 
-            Set<Attribute> lhsClosure = Attribute.closureUnder(fd.lhs, fPrime);
+            AttributeSet lhsClosure = fd.lhs.closureUnder(fPrime);
             if (A.toSet().subsetOf(lhsClosure)) {
                 extraneous.union(A);
             }
@@ -85,10 +107,26 @@ public class FunctionalDependencySet extends Set<FunctionalDependency> {
         return extraneous;
     }
 
-    public FunctionalDependencySet closure() {
+    public FunctionalDependencySet closureOfN(AttributeSet attributes, int n) {
+        List<AttributeSet> combinations = attributes.generateCombinations(n);
+        FunctionalDependencySet closure = new FunctionalDependencySet();
+        for (AttributeSet attrs : combinations) {
+            closure.union(new FunctionalDependency(attrs, attrs.closureUnder(this)));
+        }
+        return closure;
+    }
+
+    public FunctionalDependencySet closure2(AttributeSet attributes) {
+        FunctionalDependencySet fds = new FunctionalDependencySet();
+        for (int i = 1; i <= attributes.size(); i++) {
+            fds.union(closureOfN(attributes, i));
+        }
+        return fds;
+    }
+
+    public FunctionalDependencySet closure(AttributeSet attributes) {
         FunctionalDependencySet closure = new FunctionalDependencySet(this);
         int change = 0;
-        Set<Attribute> attributes = attributes();
         do {
             change = 0;
             List<FunctionalDependency> fds = new ArrayList<>(closure.toList());
@@ -107,23 +145,32 @@ public class FunctionalDependencySet extends Set<FunctionalDependency> {
 
     public FunctionalDependencySet canonicalCover() {
         FunctionalDependencySet fc = new FunctionalDependencySet(this);
-        int change = 0;
+        int change;
         do {
+            change = 0;
             FunctionalDependencySet fc_new = new FunctionalDependencySet();
-            HashMap<Set<Attribute>, Set<Attribute>> lrhs = new HashMap<>();
+            HashMap<AttributeSet, AttributeSet> lrhs = new HashMap<>();
             for (FunctionalDependency fd : fc.toList()) {
                 if (!lrhs.containsKey(fd.lhs)) {
-                    lrhs.put(fd.lhs, new Set<>());
+                    lrhs.put(fd.lhs, new AttributeSet());
                 }
                 lrhs.get(fd.lhs).union(fd.rhs);
             }
-            for (Map.Entry<Set<Attribute>, Set<Attribute>> entry : lrhs.entrySet()) {
+            for (Map.Entry<AttributeSet, AttributeSet> entry : lrhs.entrySet()) {
                 fc_new.union(new FunctionalDependency(entry.getKey(), entry.getValue()));
             }
+            change += fc.size() - fc_new.size();
             fc = fc_new;
-            for (FunctionalDependency fd : fc.toList()) {
-                Set<Attribute> extraneousLHS = fc.extraneousLHS(fd);
-                Set<Attribute> extraneousRHS = fc.extraneousRHS(fd);
+            List<FunctionalDependency> fds = fc.toList();
+            for (int i = fds.size() - 1; i >= 0; i--) {
+                FunctionalDependency fd = fds.get(i);
+                AttributeSet extraneousLHS = fc.extraneousLHS(fd);
+                AttributeSet extraneousRHS = fc.extraneousRHS(fd);
+                change += fd.lhs.subtract(extraneousLHS);
+                change += fd.rhs.subtract(extraneousRHS);
+                if (fd.attributes().isEmpty()) {
+                    fc.subtract(fd);
+                }
             }
         } while (change != 0);
         return fc;
@@ -139,7 +186,7 @@ public class FunctionalDependencySet extends Set<FunctionalDependency> {
 
     public FunctionalDependency find(String fdString) {
         String[] fdSplit = fdString.split("->");
-        FunctionalDependency fd = new FunctionalDependency(fdSplit[0], fdSplit[1], "");
+        FunctionalDependency fd = FunctionalDependency.initByString(fdSplit[0], fdSplit[1], "");
         for (FunctionalDependency f : this.toList()) {
             if (fd.equals(f)) {
                 return f;
@@ -151,7 +198,20 @@ public class FunctionalDependencySet extends Set<FunctionalDependency> {
     @Override
     public String toString() {
         StringBuilder out = new StringBuilder();
-        for (FunctionalDependency fd : this.toList()) {
+        List<FunctionalDependency> fds = this.toList();
+        fds.sort(new Comparator<FunctionalDependency>() {
+            @Override
+            public int compare(FunctionalDependency f1, FunctionalDependency f2) {
+                if (f1.lhs.size() > f2.lhs.size()) {
+                    return 1;
+                } else if (f1.lhs.size() < f2.lhs.size()) {
+                    return -1;
+                } else {
+                    return 0;
+                }
+            }
+        });
+        for (FunctionalDependency fd : fds) {
             out.append(fd + "\n");
         }
         return out.toString();

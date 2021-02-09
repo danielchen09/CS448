@@ -1,0 +1,5 @@
+R(A, B, C, D, E)
+A → B, C
+C, D → E
+B → D
+E → A

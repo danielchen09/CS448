@@ -18,6 +18,12 @@ public class Set<T> {
         this.set = new HashSet<>(set);
     }
 
+    public Set(List<T> list) {
+        for (T item : list) {
+            set.add(item);
+        }
+    }
+
     public int union(Set set) {
         int added = 0;
         for (Object item : set.toList()) {
@@ -41,8 +47,29 @@ public class Set<T> {
         return s;
     }
 
-    public void subtract(T item) {
-        this.set.remove(item);
+    public static Set intersect(Set s1, Set s2) {
+        Set s = new Set();
+        for (Object item : s1.toList()) {
+            if (s2.set.contains(item)) {
+                s.union(item);
+            }
+        }
+        return s;
+    }
+
+    public int subtract(T item) {
+        return this.set.remove(item) ? 1: 0;
+    }
+
+    public int subtract(Set<T> s) {
+        int change = 0;
+        if (s.size() == 0) {
+            return change;
+        }
+        for (T item : s.toList()) {
+            change += this.subtract(item);
+        }
+        return change;
     }
 
     public static Set subtract(Set s1, Set s2) {
@@ -59,12 +86,29 @@ public class Set<T> {
         return s;
     }
 
-    public boolean subsetOf(Set set) {
+    public boolean elementOf(Set<? extends Set<T>> set) {
+        for (Set<T> s : set.toList()) {
+            if (s.equals(this)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean subsetOf(Set<T> set) {
         return set.set.containsAll(this.set);
     }
 
     public boolean strictSubsetOf(Set set) {
         return set.set.containsAll(this.set) && this.set.size() < set.set.size();
+    }
+
+    public boolean isEmpty() {
+        return this.set.isEmpty();
+    }
+
+    public int size() {
+        return this.set.size();
     }
 
     public List<T> toList() {
@@ -73,6 +117,13 @@ public class Set<T> {
 
     public Set<T> clone(){
         return new Set<>(this.set);
+    }
+
+    public T get() {
+        if (this.size() == 0) {
+            return null;
+        }
+        return this.toList().get(0);
     }
 
     @Override
