@@ -13,7 +13,7 @@ public static Attribute addAttribute(String name)
 
 ##### Methods
 ```java
-public AttributeSet closureUnder(FunctionalDependencySet f)
+public db.relational.attribute.AttributeSet closureUnder(db.relational.FunctionalDependencySet f)
 ```
 - description: return the closure of a set of attributes under F
 - f: any set of functional dependency

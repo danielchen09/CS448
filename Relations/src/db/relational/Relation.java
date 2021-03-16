@@ -1,11 +1,12 @@
-import org.w3c.dom.Attr;
+package db.relational;
+
+import db.util.Set;
 
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
-import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -14,89 +15,108 @@ public class Relation {
     public AttributeSet attributes;
     public FunctionalDependencySet functionalDependencies;
 
-    public Relation(String fds, boolean isFile, String delimiter1, String delimiter2, String arrow) {
-        if (isFile) {
-            try {
-                Scanner scanner = new Scanner(new File(fds));
-                String relationStr = scanner.nextLine();
-                Pattern pattern = Pattern.compile("(.*?)\\((.*?)\\)");
-                Matcher matcher = pattern.matcher(relationStr);
-                if (matcher.find() && matcher.groupCount() == 2) {
-                    this.name = matcher.group(1);
-                    this.attributes = new AttributeSet(matcher.group(2), ", ");
-                }
-                functionalDependencies = readFunctionalDependencies(scanner, delimiter2, arrow);
-                scanner.close();
-            } catch (FileNotFoundException e) {
-                e.printStackTrace();
-            }
-        } else {
-            this.functionalDependencies = FunctionalDependencySet.initByString(fds, delimiter1, delimiter2, arrow);
-            this.attributes = this.functionalDependencies.attributes();
-        }
+    // region Constructors
+    public Relation() {
+        this.attributes = new AttributeSet();
+        this.functionalDependencies = new FunctionalDependencySet();
     }
-
+    /**
+     * relation from a functional dependency set
+     * attributes of the relation are those that exist
+     * in the functional dependencies
+     * @param fds
+     */
     public Relation(FunctionalDependencySet fds) {
         this.functionalDependencies = fds;
         this.attributes = fds.attributes();
     }
 
+    /**
+     * relation from an attribute set with no
+     * functional dependencies
+     * @param attributes
+     */
     public Relation(AttributeSet attributes) {
         this.attributes = attributes;
     }
 
+    /**
+     * relation from an attribute set and functional dependency set
+     * the attributes have to contain all used in fds
+     * @param attributes
+     * @param fds
+     */
     public Relation(AttributeSet attributes, FunctionalDependencySet fds) {
         this.functionalDependencies = fds;
         this.attributes = attributes;
     }
 
+    /**
+     * copy of a relation r
+     * @param r
+     */
     public Relation(Relation r) {
         this.functionalDependencies = new FunctionalDependencySet(r.functionalDependencies);
         this.attributes = new AttributeSet(r.attributes);
     }
 
-    public static Set<Relation> readRelations(String filename, int relations, String delimiter, String arrow) {
-        Set<Relation> result = new Set<>();
+    /**
+     * relation from a string "name(attr1, attr2, attr3...)"
+     * @param relationStr
+     * @return relation if success, null if failed
+     */
+    public static Relation fromString(String relationStr) {
+        Pattern pattern = Pattern.compile("(.*?)\\((.*?)\\)");
+        Matcher matcher = pattern.matcher(relationStr);
+        if (matcher.find() && matcher.groupCount() == 2) {
+            String name = matcher.group(1);
+            AttributeSet attributes = AttributeSet.fromString(matcher.group(2), ",");
+            return new Relation(attributes).name(name);
+        }
+        return null;
+    }
+
+    /**
+     * relation from a file with the first line as "name(attr1, attr2, attr3...)"
+     * and the following lines are functional dependencies
+     * @param filename
+     * @return relation if success, null if failed
+     */
+    public static Relation fromFile(String filename, String delimeter_nextAttr, String arrow) {
         try {
             Scanner scanner = new Scanner(new File(filename));
-            for (int i = 0; i < relations; i++) {
-                String relationStr = scanner.nextLine();
-                Pattern pattern = Pattern.compile("(.*?)\\((.*?)\\)");
-                Matcher matcher = pattern.matcher(relationStr);
-                if (matcher.find() && matcher.groupCount() == 2) {
-                    result.union(new Relation(new AttributeSet(matcher.group(2), ", ")).name(matcher.group(1)));
-                }
+            Relation relation = Relation.fromString(scanner.nextLine());
+            if (relation == null) {
+                return null;
             }
-            FunctionalDependencySet fds = Relation.readFunctionalDependencies(scanner, delimiter, arrow);
-            for (Relation r : result.toList()) {
-                r.functionalDependencies = fds;
+            while (scanner.hasNextLine()) {
+                relation.functionalDependencies.add(
+                        FunctionalDependency.fromString(scanner.nextLine(), delimeter_nextAttr, arrow));
             }
-            scanner.close();
+            return relation;
         } catch (FileNotFoundException e) {
             e.printStackTrace();
         }
-        return result;
+        return null;
     }
+    // endregion
 
-    private static FunctionalDependencySet readFunctionalDependencies (Scanner scanner, String delimiter2, String arrow) {
-        FunctionalDependencySet fds = new FunctionalDependencySet();
-        while (scanner.hasNextLine()) {
-            String line = scanner.nextLine();
-            fds.union(FunctionalDependency.initByLine(line, delimiter2, arrow));
-        }
-        return fds;
-    }
-
+    /**
+     * usage new Relation(...).name(...)
+     * @param name
+     * @return
+     */
     public Relation name(String name) {
         this.name = name;
         return this;
     }
 
+    // region BCNF
     public FunctionalDependencySet BCNFViolations() {
         FunctionalDependencySet violations = new FunctionalDependencySet();
         for (FunctionalDependency fd : functionalDependencies.toList()) {
             if (fd.attributes().subsetOf(attributes) && !isSuperKey(fd.lhs)) {
-                violations.union(fd);
+                violations.add(fd);
             }
         }
         return violations;
@@ -120,8 +140,8 @@ public class Relation {
                 FunctionalDependency violation = ri.BCNFViolations().get();
                 if (violation != null) {
                     result.subtract(ri);
-                    result.union(Relation.subtract(ri, violation.rhs).name("R" + (++i)));
-                    result.union(new Relation(new AttributeSet(violation), ri.functionalDependencies).name("R" + (++i)));
+                    result.add(subtract(ri, violation.rhs).name("R" + (++i)));
+                    result.add(new Relation(new AttributeSet(violation), ri.functionalDependencies).name("R" + (++i)));
                     changed++;
                 }
             }
@@ -129,7 +149,9 @@ public class Relation {
         }
         return result;
     }
+    // endregion
 
+    // region 3NF
     public boolean in3NF() {
         FunctionalDependencySet BCNFViolations = BCNFViolations();
         Set<AttributeSet> candidateKeys = getCandidateKeys();
@@ -180,6 +202,7 @@ public class Relation {
         }
         return new Set<>(resultList);
     }
+    // endregion
 
     public Attribute getAttribute(String name) {
         return Attribute.get(name);
@@ -190,7 +213,7 @@ public class Relation {
         Set<AttributeSet> superkeys = new Set<>();
         for (FunctionalDependency fd : closure.toList()) {
             if (attributes.subsetOf(fd.rhs)) {
-                superkeys.union(fd.lhs);
+                superkeys.add(fd.lhs);
             }
         }
         return superkeys;
@@ -201,7 +224,7 @@ public class Relation {
         Set<AttributeSet> superkeys = new Set<>();
         for (AttributeSet superkey : superkeysList) {
             if (!isSuperSet(superkeysList, superkey)) {
-                superkeys.union(superkey);
+                superkeys.add(superkey);
             }
         }
         return superkeys;
@@ -261,7 +284,7 @@ public class Relation {
     public Set<Relation> split(String delimiter, String...rs) {
         Set<Relation> result = new Set<>();
         for (int i = 0; i < rs.length; i++) {
-            result.union(new Relation(new AttributeSet(rs[i], delimiter), functionalDependencies).name("R" + (i + 1)));
+            result.add(new Relation(AttributeSet.fromString(rs[i], delimiter), functionalDependencies).name("R" + (i + 1)));
         }
         return result;
     }

@@ -1,41 +1,88 @@
+package db.relational;
+
+import db.util.Set;
+import org.w3c.dom.Attr;
+
 import java.util.ArrayList;
 import java.util.List;
 
 public class AttributeSet extends Set<Attribute> {
+    // region Constructors
     public AttributeSet(){}
+
+    /**
+     * attribute set with one element
+     * @param attribute
+     */
     public AttributeSet(Attribute attribute) {
-        this.union(attribute);
+        this.add(attribute);
     }
 
-    public AttributeSet(String attrsString, String delimiter) {
-        String[] attrs = attrsString.split(delimiter);
-        for (String attr : attrs) {
-            this.union(new AttributeSet(attr.replace(" ", "_")));
-        }
-    }
-
+    /**
+     * attribute set initialized by a set of attributes
+     * @param attrs
+     */
     public AttributeSet(Set<Attribute> attrs) {
         for (Attribute attr : attrs.toList()) {
-            this.union(attr);
+            this.add(attr);
         }
     }
 
+    /**
+     * copy of another attribute set attrs
+     * @param attrs
+     */
     public AttributeSet(AttributeSet attrs) {
         for (Attribute attr : attrs.toList()) {
-            this.union(attr);
+            this.add(attr);
         }
     }
 
+    /**
+     * attributes in a functional dependency
+     * @param fd
+     */
     public AttributeSet(FunctionalDependency fd) {
         AttributeSet attrs = fd.attributes();
         for (Attribute attr : attrs.toList()) {
-            this.union(attr);
+            this.add(attr);
         }
     }
 
-    public AttributeSet(String attribute) {
-        this.union(Attribute.addAttribute(attribute));
+    /**
+     * attribute set with one element from "name type" or "name"
+     * @param attr
+     */
+    public AttributeSet(String attr) {
+        this.add(Attribute.fromString(attr));
     }
+
+    /**
+     * attribute set with multiple elements
+     * @param attribute
+     */
+    public AttributeSet(String... attribute) {
+        for (String attr : attribute) {
+            this.add(Attribute.fromString(attr));
+        }
+    }
+
+    /**
+     * attribute set from string separated by delimeter
+     * @param attrsString
+     * @param delimiter
+     * @return
+     */
+    public static AttributeSet fromString(String attrsString, String delimiter) {
+        AttributeSet attrset = new AttributeSet();
+        String[] attrs = attrsString.split(delimiter);
+        for (String attr : attrs) {
+            attr = attr.trim();
+            attrset.union(new AttributeSet(attr.replace(" ", "_")));
+        }
+        return attrset;
+    }
+    // endregion
 
     public AttributeSet closureUnder(FunctionalDependencySet f) {
         AttributeSet result = new AttributeSet(this);
@@ -74,7 +121,7 @@ public class AttributeSet extends Set<Attribute> {
         if (index == data.length) {
             AttributeSet attrs = new AttributeSet();
             for (int i : data) {
-                attrs.union(attributes.get(i));
+                attrs.add(attributes.get(i));
             }
             lists.add(attrs);
         } else if (start <= end) {
@@ -87,7 +134,7 @@ public class AttributeSet extends Set<Attribute> {
     public int union(AttributeSet attrs) {
         int change = 0;
         for (Attribute attr : attrs.toList()) {
-            change += this.union(attr);
+            change += this.add(attr);
         }
         return change;
     }

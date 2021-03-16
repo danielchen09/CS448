@@ -1,7 +1,9 @@
+package db.util;
+
 import java.util.*;
 
 public class Set<T> {
-    private java.util.Set<T> set = new HashSet<>();;
+    private java.util.Set<T> set = new HashSet<>();
 
     public Set() {
     }
@@ -27,12 +29,12 @@ public class Set<T> {
     public int union(Set set) {
         int added = 0;
         for (Object item : set.toList()) {
-            added += this.union((T)item);
+            added += this.add((T)item);
         }
         return added;
     }
 
-    public int union(T item) {
+    public int add(T item) {
         if (item == null) {
             return 0;
         }
@@ -51,7 +53,7 @@ public class Set<T> {
         Set s = new Set();
         for (Object item : s1.toList()) {
             if (s2.set.contains(item)) {
-                s.union(item);
+                s.add(item);
             }
         }
         return s;
